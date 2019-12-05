@@ -13,6 +13,10 @@ if (!file.exists('data/2019-49_tickets.csv')) {
   write_csv(d, 'data/2019-49_tickets.csv')
 }
 
+d <- read_csv('data/2019-49_tickets.csv')
+
+glimpse(d)
+
 coord = getbb('Philadelphia, PA')
 
 streets1 = opq(coord) %>% 
