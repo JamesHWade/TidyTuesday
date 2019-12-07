@@ -1,4 +1,5 @@
 library(tidyverse)
+library(leaflet)
 # library(cowplot)
 # library(patchwork)
 # library(ggtext)
@@ -16,6 +17,44 @@ if (!file.exists('data/2019-49_tickets.csv')) {
 d <- read_csv('data/2019-49_tickets.csv')
 
 glimpse(d)
+
+d2 <- d %>% filter(lat > 39.8 & lon > -75.4) %>% 
+  mutate(year = lubridate::year(issue_datetime),
+         month = lubridate::month(issue_datetime),
+         hour = lubridate::hour(issue_datetime),
+         day = lubridate::day(issue_datetime),
+         wday = lubridate::wday(issue_datetime),
+         violation_desc = str_squish(str_remove(pattern = "CC", violation_desc)),
+         type = fct_lump(violation_desc, n = 10))
+
+ggplot(sample_n(d2, 1e4)) + geom_point(aes(x = lat, y = lon, color = hour), alpha = 0.2)
+
+ggplot(sample_n(d2, 1e4)) + geom_bar(aes(x = type))
+
+ex <- sample(d2$issue_datetime, 1)
+
+lubridate::year(ex)
+lubridate::month(ex)
+lubridate::hour(ex)
+lubridate::day(ex)
+
+factpal <- colorFactor(topo.colors(95), d$violation_desc)
+m <- leaflet(sample_n(d2, 1e4)) %>% 
+  setView(lng = median(d2$lon), lat = median(d2$lat), zoom = 12) %>%
+  addCircles(lng = ~ lon, lat = ~ lat, color = ~ factpal(violation_desc)) %>% 
+  addTiles()
+  
+m %>% addProviderTiles(providers$CartoDB.Positron)
+
+m %>% addTiles()
+
+
+m <- leaflet() %>%
+  addTiles() %>%  # Add default OpenStreetMap map tiles
+  addMarkers(lng=174.768, lat=-36.852, popup="The birthplace of R") %>% 
+  
+m  # Print the map
+
 
 coord = getbb('Philadelphia, PA')
 
