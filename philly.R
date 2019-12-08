@@ -1,5 +1,7 @@
 library(tidyverse)
 library(leaflet)
+library(ggthemes)
+library(gganimate)
 # library(cowplot)
 # library(patchwork)
 # library(ggtext)
@@ -16,6 +18,8 @@ if (!file.exists('data/2019-49_tickets.csv')) {
 
 d <- read_csv('data/2019-49_tickets.csv')
 
+philly <- us.cities %>% filter(name == "Philadelphia PA")
+
 glimpse(d)
 
 d2 <- d %>% filter(lat > 39.8 & lon > -75.4) %>% 
@@ -24,26 +28,68 @@ d2 <- d %>% filter(lat > 39.8 & lon > -75.4) %>%
          hour = lubridate::hour(issue_datetime),
          day = lubridate::day(issue_datetime),
          wday = lubridate::wday(issue_datetime),
-         violation_desc = str_squish(str_remove(pattern = "CC", violation_desc)),
-         type = fct_lump(violation_desc, n = 10))
+         violation_desc = str_squish(str_remove(pattern = "CC|PING", violation_desc)),
+         type = fct_lump(violation_desc, n = 5, other_level = "OTHER"))
 
-ggplot(sample_n(d2, 1e4)) + geom_point(aes(x = lat, y = lon, color = hour), alpha = 0.2)
+ggplot() + geom_polygon(data = usa, aes(x=long, y = lat, group = group)) + 
+  coord_fixed(1.3)
 
-ggplot(sample_n(d2, 1e4)) + geom_bar(aes(x = type))
+ggplot() + geom_polygon(data = sample_n(d2, 100), aes(x=lon, y = lat, group = type)) + 
+  coord_fixed(1.3)
 
-ex <- sample(d2$issue_datetime, 1)
+ggplot(sample_n(d2, 1e3)) + 
+  # geom_point(aes(x = lat, y = lon, color = type), alpha = 0.2) +
+  theme_void() + 
+  scale_color_brewer(palette = "Spectral") +
+  labs(color = "VIOLATION") +
+  guides(colour = guide_legend(override.aes = list(alpha = 1))) +
+  geom_polygon(aes(x = lat, y = lon)) +
+  coord_fixed(1.3)
 
-lubridate::year(ex)
-lubridate::month(ex)
-lubridate::hour(ex)
-lubridate::day(ex)
+ggplot(sample_n(d2, 1e4)) + 
+  ggpointdensity::geom_pointdensity(aes(x = lat, y = lon)) +
+  theme_void() + 
+  scale_color_viridis_c(option = 'viridis') +
+  transition_states(
+    type,
+    transition_length = 2,
+    state_length = 2
+  ) +
+  labs(title = 'Violation: {closest_state}', color = "")
 
-factpal <- colorFactor(topo.colors(95), d$violation_desc)
+ggplot(sample_n(d2, 1e4)) + 
+  geom_bar(aes(fill = type, x = hour)) + 
+  coord_polar(start = -.14) +
+  scale_fill_brewer(palette = "Spectral") +
+  labs(fill = "Violation") + 
+  theme(legend.position = "right",
+        legend.background = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid = element_line(color = "black", size = 0.1, linetype = "dotted"),
+        panel.background = element_blank(),
+        plot.title = element_text(face = "bold", size = 14))
+
+n_days <- d2 %>% select(month, day, year) %>% distinct() %>% nrow()
+
+ggplot(d2) + 
+  geom_bar(aes(x = type, fill = type), width = 0.3) +
+  scale_fill_brewer(palette = "Spectral") +
+  scale_y_continuous(labels = function(x) x / n_days, breaks = c(0, 250, 500, 750, 1000, 1250) * n_days) +
+  labs(y = "Tickets per Day", x = "Violation") +
+  coord_flip() +
+  theme_classic() +
+  theme(legend.position = "none")
+
+
+factpal <- colorFactor(topo.colors(6), d2$type)
 m <- leaflet(sample_n(d2, 1e4)) %>% 
   setView(lng = median(d2$lon), lat = median(d2$lat), zoom = 12) %>%
-  addCircles(lng = ~ lon, lat = ~ lat, color = ~ factpal(violation_desc)) %>% 
+  addCircles(lng = ~ lon, lat = ~ lat, color = ~ factpal(type)) %>% 
   addTiles()
-  
+
 m %>% addProviderTiles(providers$CartoDB.Positron)
 
 m %>% addTiles()
@@ -53,77 +99,4 @@ m <- leaflet() %>%
   addTiles() %>%  # Add default OpenStreetMap map tiles
   addMarkers(lng=174.768, lat=-36.852, popup="The birthplace of R") %>% 
   
-m  # Print the map
-
-
-coord = getbb('Philadelphia, PA')
-
-streets1 = opq(coord) %>% 
-  add_osm_feature('highway', c('motorway', 'primary', 'secondary', 'tertiary')) %>% 
-  osmdata_sf()
-beep()
-
-streets2 = opq(coord) %>% 
-  add_osm_feature('highway', c('residential', 'living_street', 'unclassified', 'service', 'foodway')) %>% 
-  osmdata_sf()
-beep()
-
-d2 = filter(d, between(lon, coord[1, 1], coord[1, 2]), between(lat, coord[2, 1], coord[2, 2]))
-d3 = filter(d2, str_detect(violation_desc, 'METER EXPIRED'))
-
-viridis::viridis(10)[c(3, 10)]
-colorspace::lighten('#3E4A89', .1)
-viridis::inferno(10)[c(3, 8)]
-
-p = ggplot(sample_n(d2, 1e4)) +
-  geom_sf(data = streets2$osm_lines, col = 'grey40', size = .1) +
-  geom_sf(data = streets1$osm_lines, col = 'grey40', size = .4) +
-  geom_pointdensity(aes(lon, lat), alpha = .8) +
-  geom_sf(data = streets2$osm_lines, col = alpha('grey40', .2), size = .1) +
-  geom_sf(data = streets1$osm_lines, col = alpha('grey40', .2), size = .4) +
-  scale_color_viridis_c(option = 'viridis') +
-  coord_sf(xlim = coord[1,], ylim = coord[2,], expand = F) +
-  labs(
-    title = 'PARKING VIOLATION',
-    subtitle = '<b style="color:#FDFDFD;">This vehicle is illegally parked in the City of Philadelphia.</b><br/><br/>
-    Parking tickets are issued <b style="color:#FDE725;">more frequently</b> near the city center<br/>
-    and <b style="color:#505A98;">less frequently</b> elsewhere.',
-    caption = 'Data by Open Data Philly\n#TidyTuesday • @watzoever') +
-  theme_map() +
-  theme(legend.position = 'none',
-        text = element_text(family = 'Poppins Latin', color = 'grey60', size = 18),
-        plot.background = element_rect(fill = 'grey20', color = NA),
-        plot.title = element_text(family = 'Impact', color = '#fdfdfd', size = 42),
-        plot.subtitle = element_markdown(margin = margin(b = 20)),
-        plot.margin = unit(rep(2, 4), 'cm'))
-
-system.time(ggsave('plots/2019-49_tickets.png', p, width = 10, height = 12, bg = 'grey20'))
-beep()
-
-p2 = ggplot(d3) +
-  geom_sf(data = streets2$osm_lines, col = 'black', size = .1) +
-  geom_sf(data = streets1$osm_lines, col = 'black', size = .4) +
-  geom_pointdensity(aes(lon, lat), size = 3, alpha = .8) +
-  geom_sf(data = streets2$osm_lines, col = alpha('black', .2), size = .1) +
-  geom_sf(data = streets1$osm_lines, col = alpha('black', .2), size = .4) +
-  scale_color_viridis_c(option = 'inferno') +
-  coord_sf(xlim = coord[1,], ylim = coord[2,], expand = F) +
-  labs(
-    title = 'PARKING VIOLATION',
-    subtitle = '**This vehicle is illegally parked in the City of Philadelphia.**<br/><br/>
-    Parking tickets for expired meters are issued <b style="color:#F7D03C;">more frequently</b> near<br/>
-    the city center and <b style="color:#4B0C6B;">less frequently</b> elsewhere.',
-    caption = 'Data by Open Data Philly\n#TidyTuesday • @watzoever') +
-  theme_map() +
-  theme(legend.position = 'none',
-        text = element_text(family = 'Poppins Latin', size = 18),
-        plot.title = element_text(family = 'Impact', size = 42),
-        plot.subtitle = element_markdown(margin = margin(b = 20)),
-        plot.margin = unit(rep(2, 4), 'cm'))
-
-system.time(ggsave('plots/2019-49_tickets_meters.png', p2, width = 10, height = 12))
-beep()
-
-p3 = p + p2
-system.time(ggsave('plots/2019-49_tickets_both.png', p3, width = 20))
-beep()
+m
