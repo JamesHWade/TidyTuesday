@@ -66,9 +66,10 @@ p_anim <- p + transition_states(type_2, transition_length = 1, state_length = 2)
   exit_shrink() +
   ease_aes('sine-in-out') +
   annotation_custom(grob = t1, ymax = 39.975, xmin = -75.13) +
-  theme(legend.position = c(0.88, 0.88))
+  theme(legend.background = element_rect(fill=alpha('white', 0.5)),
+        legend.position = c(0.88, 0.88))
 
-anim_save(filename = "philly_tickets_animated.gif", animation = p_anim)
+anim_save(filename = "philly_tickets_animated.gif", animation = p_anim, res = 100)
 
 p_byhour <- ggplot(sample_n(d2, 1e4)) + 
   geom_bar(aes(fill = type, x = hour)) + 
