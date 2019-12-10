@@ -1,0 +1,76 @@
+---
+title: "#TidyTuesday 2019-50"
+author: James Wade
+output: html_notebook
+---
+
+Here is my entry for [#TidyTuesday](https://github.com/rfordatascience/tidytuesday) from 2019-50: 'You can make it in R.'
+
+# Part 1: Diseases
+
+## Import the Data
+
+```{r}
+library(tidyverse)
+library(gganimate)
+library(waffle)
+
+if(!file.exists("data/diseases.rds")) {
+  d <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-12-10/diseases.csv")
+  if(!dir.exists("data")) {
+    dir.create("data")
+  }
+  write_rds(disease, "data/diseases.rds",)
+} else disease <- read_rds("data/diseases.rds")
+
+d2 <- disease %>% 
+  group_by(year, state, disease) %>% 
+  mutate(rate = count / population * 10000 * 52 / weeks_reporting) %>% 
+  ungroup()
+```
+
+## Measles Plot with Vaccine
+
+```{r}
+jet.colors <- colorRampPalette(c("#F0FFFF", "cyan", "#007FFF", "yellow", 
+                                 "#FFBF00", "orange", "red", "#7F0000"), bias = 2.25)
+
+
+p_anim <- ggplot(d2 %>% filter(disease == "Measles"), aes(x = year, y = state, fill = rate)) + 
+  geom_tile(color = "white", size = 0.35) +
+  scale_x_continuous(expand = c(0,0)) +
+  scale_fill_gradientn(colors = jet.colors(16), na.value = 'white') +
+  theme_minimal() +
+  transition_time(year) + shadow_mark() +
+  annotate(geom = "text", x = 1963.5, y = 50.5, label = "Vaccine introduced", size = 5, hjust = 0) +
+  ggtitle("Incidence of Meases (USA) \n1928-2011") +
+  geom_vline(xintercept = 1963, col = "black") +
+  labs(x = "Year", y = "State", fill = "Rate\n(Cases per 100,000)")
+
+anim_save(p_anim, width = 1000, height = 600, width = 100, filename = "measles.gif")
+```
+
+
+```{r}
+# states <- c("Alabama", "California", "Colorado", "Michigan", "New York", "Texas")
+states <- c("Georgia")
+
+p_waffle <- ggplot(d2 %>% filter(state %in% states, year %in% c(1976:1995))) +
+  geom_waffle(aes(fill = disease, values = count), 
+              color = "white", n_rows = 50, flip = TRUE) +
+  facet_wrap(~year) +
+  coord_equal() +
+  ggtitle("Measles Outbreak in Geogia \n(1980-2000") +
+  theme_classic()
+
+p_line <- ggplot(d2 %>% filter(state %in% states, year %in% c(1940:2000))) +
+  geom_line(aes(x = year,color = disease, y = count))
+
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
